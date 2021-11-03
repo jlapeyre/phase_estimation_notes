@@ -1,0 +1,347 @@
+%% Force arXiv to use pdflatex
+\pdfoutput=1
+\documentclass[superscriptaddress,nofootinbib,longbibliography,aps,pre]{revtex4-1}
+
+\usepackage{graphicx}  %% figures
+\usepackage{amssymb}   %% mathbb
+\usepackage{amsmath}   %% align and other math environments
+\usepackage[usenames,dvipsnames]{color}
+
+
+\graphicspath{{figures/}}
+
+
+\usepackage{xcolor} %% needed for frame color
+\usepackage{mdframed}
+%\mdfsetup{backgroundcolor=gray,shadow=true,roundcorner=8pt}
+\mdfsetup{
+outerlinewidth = 2 ,%
+roundcorner = 20 pt ,%
+leftmargin = 0 ,%
+rightmargin = 0 ,%
+backgroundcolor = brown!20, %
+outerlinecolor = blue!70!black,%
+%innertopmargin = 0 ,%  % Note that this is changed to
+innertopmargin = 5 ,  % For two column mode, else boxes are two big
+innerbottommargin = 5,%
+splittopskip = 10 ,%
+}
+
+\usepackage[]{hyperref} % Make much nicer links.
+\hypersetup{
+  colorlinks   = true, %Coloured links instead of ugly boxes
+  urlcolor     = blue, %Colour for external hyperlinks
+  linkcolor    = blue, %Colour of internal links
+  citecolor   = red,    %Colour of citations
+%  hypertexnames = false % for autonum
+}
+
+\newcommand{\myhead}[1]{\textit{#1} --- \ }
+
+
+\newcommand{\adj}{\dagger}
+\newcommand{\tr}{{\operatorname{tr}}}
+
+\newcommand{\ket}[1]{|{#1}\rangle}
+\newcommand{\bra}[1]{\langle{#1}|}
+\newcommand{\braket}[2]{\langle{#1}|{#2}\rangle}
+\newcommand{\ketbra}[2]{|{#1}\rangle\!\langle{#2}|}
+
+% Set of complex numbers
+\newcommand{\Cn}{{\mathbb{C}}}
+
+% m x n complex matrices ("r" for rectangular)
+\newcommand{\Cmatr}[2]{{\Cn}^{#1\times #2}}
+
+% n x n complex matrices
+\newcommand{\Cmat}[1]{\Cmatr{#1}{#1}}
+
+% 2 x 2 complex matrices
+\newcommand{\Cmatt}{\Cmat{2}}
+
+\newcommand{\umax}{u_{\text{max}}}
+\newcommand{\umin}{u_{\text{min}}}
+
+\newcommand{\aphi}{\tilde{\phi}}
+\newcommand{\auvec}{\tilde{u}}
+
+\begin{document}
+
+\title{Phase estimation implementation}
+\author{G. John \surname{Lapeyre}, Jr.}
+\date{\today}
+
+{
+\let\clearpage\relax
+\maketitle
+}
+
+\section{Scaling the Hamiltonian for quantum phase estimation}
+
+Consider an eigensystem
+%
+\begin{equation}
+  H\ket{u_{j}} = u_{j}\ket{u_{j}}
+\end{equation}
+%
+We choose $\tau>0$ so that upon rescaling $H' = -\tau H$, the unitary describing evolution is
+%
+\begin{equation}
+  U = e^{-i H'} = e^{i\tau H}.
+\end{equation}
+%
+Then the phase imparted is determined by
+%
+\begin{equation}
+  U\ket{u_{j}} = e^{i2\pi\phi_{j}} \ket{u_{j}}, \ \text{ with } \phi_{j}=\tau \frac{u_{j}}{2\pi}.
+\end{equation}
+%
+Recall that $e^{i2\pi(\phi_{j} + m)}$ has the same value for all integers $m$.
+The phase approximation algorithm provides an estimate
+$\aphi$ of $\phi_{j} \!\!\mod 1$.
+%Physically, we cannot distinguish among $\phi + m2\pi$ for different values of $m$.
+We would like to choose $\tau$ such that the phase satisfies $0\le \phi_{j} < 1$,
+which then guarantees a one-to-one correspondence between $u_{j}$ and $\phi_{j}$.
+
+\subsection{A single eigenstate and positive spectrum}
+
+Suppose the spectrum is positive
+%
+\begin{equation}
+  u_{j} \ge 0, \ \text{ for all } j.
+\end{equation}
+%
+The algorithm ideally measures the phase as $\aphi = \phi_{j}\mod 1$.
+So, we choose a bound $u_{b} > \umax$ where  $\umax = \max_{j} u_{j}$
+so that $\tau = 2\pi/u_{b}$, and $\phi_{j} = u_{j}/u_{b}$ satisfies $0\le \phi_{j}<1$.
+Then there is a one-to-one correspondence between values
+of $\phi$ and $u_{j}$.
+
+In summary, we supply to the algorithm
+an eigenstate $\ket{u_{j}}$ and a unitary
+constructed\footnote{%
+  On quantum hardware, we might construct $-H$ and evolve for time $\tau = 2\pi/u_{b}$.
+ }
+from
+%
+\begin{equation}
+  -\tau H = -\frac{2\pi}{u_{b}} H.
+\end{equation}
+%
+We read the output $\aphi$ and obtain our estimate of $\tilde{u_{j}}$ of $u_{j}$ as
+%
+\begin{equation}
+  \tilde{u_{j}} = u_{b} \aphi.
+\end{equation}
+%
+
+In fact, the phase is read from a register with a finite number $n$ of bits and so
+takes discrete values
+%
+\begin{equation}
+  \label{phaseregvals}
+  \aphi \in \{0, \epsilon, 2\epsilon, 3\epsilon, \ldots, 1 - \epsilon\}, \ \text{ where } \epsilon = 2^{-n}.
+\end{equation}
+%
+The estimate $\tilde{u_{j}}$ takes values
+%
+\begin{equation}
+  \label{eigvaldiscrete}
+  \tilde{u_{j}} \in \{0, \epsilon_{u}, 2\epsilon_{u}, 3\epsilon_{u}, \ldots, u_{b} - \epsilon_{u}\},
+  \ \text{ where } \epsilon_{u} = u_{b}2^{-n}.
+\end{equation}
+%
+In particular, if we choose $u_{b}=\umax$, then $\umax$ is mapped to zero.
+This is why we required $u_{b} > \umax$  rather than $u_{b} \ge \umax$.
+
+
+\subsubsection{Example: Exact representation of minimum eigenvalue}
+
+When testing implementations, one may encounter problems such as the following.
+Still assuming $u_{j}>0$ for all $j$, we look for a scaling that allows at the same time
+%
+\begin{enumerate}
+   \item{an exact representation of $\umin$ in the $n$ bits of the phase register.}
+   \item{$u_{b} > \umax$}.
+\end{enumerate}
+%
+The second condition is required if we expect that a component $\ket{\umax}$ will be present in the input state.
+Referring to~\eqref{eigvaldiscrete} we see that for the first condition we must have $\umin = m\epsilon_{u}$ or
+%
+\begin{equation}
+  u_{b} = \frac{2^{n}}{m} \umin, \ \text{ for some } m \in {1,2,\ldots, n-1}.
+\end{equation}
+%
+Note that we do not include $m=0$ as a possibility.
+We only scale the phase interval, but do not shift it.
+In particular, the phase $\phi=0$ corresponds only to $u=0$
+(unless $\umax >= u_{b}$, which we want to avoid.)
+The second condition, $u_{b} > \umax$ may be written
+%
+\begin{equation}
+  \label{umaxumincond}
+  \umax < \frac{2^{n}}{m} \umin
+\end{equation}
+%
+Clearly if~\eqref{umaxumincond} is satisfied for any $m>1$, then it
+is satisfied for $m=1$.
+That is $m=1$ gives the largest $u_{b}$.
+Thus, setting $m=1$, we find the condition for the number of qubits in the phase register $n$.
+%
+\begin{equation}
+  n > \log_{2}\left(\frac{\umax}{\umin} \right)
+\end{equation}
+%
+This is the number of qubits necessary to satisfy both conditions 1 and 2 above.
+On the other hand, to get the best resolution, we want to choose $m$ as large
+as possible. From~\eqref{umaxumincond} we find that for fixed $n$, we can
+choose the largest $m$ satisfying
+%
+\begin{equation}
+  m < 2^{n}\frac{\umax}{\umin},
+\end{equation}
+%
+Explicitly,
+%
+\begin{equation}
+  m =  \left \lfloor{2^{n}\frac{\umax}{\umin}} \right \rfloor,
+\end{equation}
+%
+
+\subsection{Single eigenstate and positive and negative eigenvalues}
+
+Here we present a straigtforward scaling that makes good use of the resolution
+in case the spectrum has both positive and negative values of the same magnitude.
+We map the positive eigenvalues to $(0, \pi)$
+and the negative eigenvalues to $(-\pi, 0)$.
+We choose $u_{b}$ satisfying
+%
+\begin{equation}
+  u_{b} > \max \left\{ |\umin|, |\umax| \right\}.
+\end{equation}
+%
+For a positive spectrum we chose $\tau=2\pi/u_{b}$.
+Here, we choose $\tau=\pi/u_{b}$, so that
+$\phi_{j}=u_{j}/(2u_{b})$ satisfies
+%
+\begin{equation}
+-\frac{1}{2} \le \phi_{j} < \frac{1}{2}.
+\end{equation}
+%
+We obtain the unwrapped observed phase $\aphi'$
+satisfying $-(1/2) \le \aphi' < (1/2)$ via
+%
+\begin{equation}
+  \aphi' =
+  \begin{cases}
+    \aphi & \text{ if } \aphi < \frac{1}{2} \\
+    1 - \aphi & \text{ if } \aphi \ge \frac{1}{2} \\
+  \end{cases}.
+\end{equation}
+%
+The sorted possible values of $\aphi'$ are given by
+%
+\begin{equation}
+  \aphi' \in \left\{-\frac{1}{2}, -\frac{1}{2} + \epsilon, -\frac{1}{2} +  2\epsilon, \ldots, \frac{1}{2} - \epsilon \right\},
+  \ \text{ where } \epsilon = 2^{-n}.
+\end{equation}
+%
+The estimated eigenvalue, obtained via $\auvec = 2u_{b}\aphi'$, has value given by
+%
+\begin{equation}
+  \auvec \in \left\{-u_{b}, -u_{b} + \epsilon_{u}, \ldots, u_{b} - \epsilon_{u} \right\},
+  \ \text{ where } \epsilon_{u} = u_{b}2^{-n+1}.
+\end{equation}
+%
+
+\section{Fast simulation of the phase register probabilities}
+
+Here, we present a method to compute numerically the probabilities
+of the states of phase-estimation register in parallel QPE.
+The method is very straightforward.
+We simply compute intermediate steps classically rather than with quantum circuits.
+Recall that QPE works with a composite system with Hilbert space $V_{p}\otimes V_{U}$
+where $V_{p}$ corresponds to an $n$-qubit phase-estimation register and $V_{U}$ is
+the space of the eigenphase problem.
+Suppose for the moment that the input state $\ket{u}\in V_{U}$ is an eigenvalue of
+$U$, that is $U\ket{u}=e^{2\pi i \phi_{u}}\ket{u}$.
+For our purposes, we break QPE into three steps.
+%
+\begin{enumerate}
+\item{Preparation of a state
+    \begin{equation}
+      \label{aftercontrolledU}
+      \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} e^{2\pi i j \phi_{u}} \ket{j}\ket{u},
+    \end{equation}
+    where $N=2^{n}$ and the states $\ket{j}$ are the computational basis vectors of the phase register.
+  }
+\item{Application of the inverse (quantum) Fourier transform of the prepared state, with the result
+    \begin{equation}
+      \ket{\tilde{\phi}_{u}} \ket{u}.
+    \end{equation}
+    If $\phi_{u}$ can be representated exactly in $n$-qubits, then $\phi_{u}=k/N$ for some integer $k$.
+    In this case we are performing the inverse Fourier transform of a Fourier transform with a single frequency
+    component, given by $k$. In this case, the phase estimation register will be in the computational basis state $\ket{k}$.
+    }
+\item{Measurement of the state $\ket{\tilde{\phi}_{u}}$ in the computational basis to obtain an estimate of $\phi_{u}$}
+\end{enumerate}
+%
+Our procedure for computing the amplitudes of $\ket{\tilde{\phi}_{u}}$
+takes as input the phase $\phi_{u}$, and the number of qubits $n$.
+In particular, we make no use of $\ket{u}$ and $U$.
+We first prepare complex floating point vector $x_{0},\ldots, x_{N-1}$ with values
+%
+\begin{equation}
+  x_{j} = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} e^{2\pi i j \phi_{u}}.
+\end{equation}
+%
+We then compute the inverse Fourier transform,
+ via the FFT, of the vector $x_{0},\ldots, x_{N-1}$.
+The result is a numerical approximation of amplitudes of $\ket{\tilde{\phi}_{u}}$
+in the computational basis, that is $\braket{j}{\tilde\phi_{u}}$ for $j=0,\ldots, N-1$.
+These are amplitudes of the phases in~\eqref{phaseregvals}
+% by taking the discrete inverse Fourier
+% transform,
+% The result is a vector of the amplitudes of the values in
+% given by $\braket{j}{\tilde\phi_{u}}$ for $j=0,\ldots, N-1$.
+
+Suppose that instead of an eigenstate $\ket{u}$ we have as input a generic pure state
+$\sum_{u}c_{u}\ket{u}$, where the sum runs over eigenvectors of $U$.
+In this case, the QPE algorithm leaves the phase register in the state
+%
+\begin{equation}
+ \sum_{u} c_{u} \ket{\tilde\phi_{u}}\ket{u}.
+\end{equation}
+%
+The state of the phase register alone is described by the reduced density matrix
+%
+\begin{equation}
+ \rho_{\text{phase}}  = \sum_{u} |c_{u}|^{2} \ketbra{\tilde\phi_{u}}{\tilde\phi_{u}}.
+\end{equation}
+%
+The probability of reading the computational basis state $\ket{j}$ is then
+%
+\begin{equation}
+  p(j) = \tr\left(\ketbra{j}{j}\rho_{\text{phase}}\right)
+   = \sum_{u} |c_{u}|^{2} |\braket{j}{\tilde\phi_{u}}|^{2}.
+\end{equation}
+%
+Consider taking as input the number of qubits in the phase register $n$
+and pairs $(\phi_{u}, c_{u})$ representing the input state.
+We can compute $p(j)$ numerically as follows.
+Initialize $p(j)$ to zero for all $j$.
+Loop over $u$.
+For each iteration with fixed $u$,
+compute the vector of $\braket{j}{\tilde\phi_{u}}$ for $j=0,\ldots, N-1$ as described above.
+For each $j$ accumulate $|c_{u}|^{2} |\braket{j}{\tilde\phi_{u}}|^{2}$ into $p(j)$.
+Continue to the next $u$ until finished.
+
+
+
+\end{document}
+
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: t
+%%% End:
