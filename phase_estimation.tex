@@ -280,7 +280,7 @@ For our purposes, we break QPE into three steps.
       \ket{\tilde{\phi}_{u}} \ket{u}.
     \end{equation}
     If $\phi_{u}$ can be representated exactly in $n$-qubits, then $\phi_{u}=k/N$ for some integer $k$.
-    In this case we are performing the inverse Fourier transform of a Fourier transform with a single frequency
+    In this case we are performing the inverse discrete Fourier transform of a Fourier transform with a single frequency
     component, given by $k$. In this case, the phase estimation register will be in the computational basis state $\ket{k}$.
     }
 \item{Measurement of the state $\ket{\tilde{\phi}_{u}}$ in the computational basis to obtain an estimate of $\phi_{u}$}
@@ -295,7 +295,7 @@ We first prepare complex floating point vector $x_{0},\ldots, x_{N-1}$ with valu
   x_{j} = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} e^{2\pi i j \phi_{u}}.
 \end{equation}
 %
-We then compute the inverse Fourier transform,
+We then compute the inverse discrete Fourier transform,
  via the FFT, of the vector $x_{0},\ldots, x_{N-1}$.
 The result is a numerical approximation of amplitudes of $\ket{\tilde{\phi}_{u}}$
 in the computational basis, that is $\braket{j}{\tilde\phi_{u}}$ for $j=0,\ldots, N-1$.
